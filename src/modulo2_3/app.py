@@ -1,17 +1,31 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-from enum import Enum as PyEnum
+import hashlib
 import os
+import secrets
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from enum import Enum as PyEnum
 
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from fastapi import Depends
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import status
+from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer
 from sqlalchemy.pool import StaticPool
+from sqlmodel import create_engine
+from sqlmodel import Field
+from sqlmodel import select
+from sqlmodel import Session
+from sqlmodel import SQLModel
 
-SECRET_KEY = os.environ.get("ORDERS_SECRET_KEY", "orders-api-secret-key-32-byte-minimum-abc")
+SECRET_KEY = os.environ.get(
+    "ORDERS_SECRET_KEY",
+    "orders-api-secret-key-32-byte-minimum-abc",
+)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 security = HTTPBearer()
@@ -25,7 +39,7 @@ class OrderStatus(str, PyEnum):
 
 
 class Order(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     customer_name: str
     item: str
     quantity: int
@@ -42,12 +56,10 @@ class LoginRequest(SQLModel):
 
 
 # User model and password utilities (simple PBKDF2-HMAC-SHA256)
-import hashlib
-import secrets
 
 
 class User(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     hashed_password: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -76,7 +88,8 @@ def _verify_password(password: str, stored: str) -> bool:
 def create_token(username: str) -> str:
     payload = {
         "sub": username,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "exp": datetime.now(timezone.utc)
+        + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -101,7 +114,9 @@ def ensure_default_admin(session: Session):
     return user
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict[str, str]:
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict[str, str]:
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -122,7 +137,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     return {"username": username}
 
 
-def get_engine(database_url: Optional[str] = None):
+def get_engine(database_url: str | None = None):
     if database_url is None:
         database_url = os.environ.get("DATABASE_URL", "sqlite:///orders.db")
     connect_args = {}
@@ -132,11 +147,16 @@ def get_engine(database_url: Optional[str] = None):
         connect_args = {"check_same_thread": False}
         if database_url == "sqlite:///:memory:":
             engine_kwargs = {"poolclass": StaticPool}
-    engine = create_engine(database_url, echo=False, connect_args=connect_args, **engine_kwargs)
+    engine = create_engine(
+        database_url,
+        echo=False,
+        connect_args=connect_args,
+        **engine_kwargs,
+    )
     return engine
 
 
-def create_app(database_url: Optional[str] = None) -> FastAPI:
+def create_app(database_url: str | None = None) -> FastAPI:
     app = FastAPI(title="Orders API", version="1.0.0")
 
     engine = get_engine(database_url)
@@ -160,11 +180,19 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
         return {"access_token": token, "token_type": "bearer"}
 
     @app.post("/users", status_code=status.HTTP_201_CREATED)
-    def create_user_endpoint(payload: LoginRequest, session: Session = Depends(get_session)):
+    def create_user_endpoint(
+        payload: LoginRequest,
+        session: Session = Depends(get_session),
+    ):
         # simple registration endpoint
-        existing = session.exec(select(User).where(User.username == payload.username)).first()
+        existing = session.exec(
+            select(User).where(User.username == payload.username),
+        ).first()
         if existing:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User already exists",
+            )
         hashed = _make_password_hash(payload.password)
         user = User(username=payload.username, hashed_password=hashed)
         session.add(user)
@@ -173,12 +201,19 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
         return {"id": user.id, "username": user.username}
 
     @app.get("/orders")
-    def list_orders(_: dict[str, str] = Depends(get_current_user), session: Session = Depends(get_session)):
+    def list_orders(
+        _: dict[str, str] = Depends(get_current_user),
+        session: Session = Depends(get_session),
+    ):
         orders = session.exec(select(Order)).all()
         return orders
 
     @app.post("/orders", status_code=status.HTTP_201_CREATED)
-    def create_order(order: Order, _: dict[str, str] = Depends(get_current_user), session: Session = Depends(get_session)):
+    def create_order(
+        order: Order,
+        _: dict[str, str] = Depends(get_current_user),
+        session: Session = Depends(get_session),
+    ):
         order.total_amount = float(order.quantity * order.unit_price)
         order.created_at = datetime.now(timezone.utc)
         order.updated_at = datetime.now(timezone.utc)
@@ -188,17 +223,32 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
         return order
 
     @app.get("/orders/{order_id}")
-    def get_order(order_id: int, _: dict[str, str] = Depends(get_current_user), session: Session = Depends(get_session)):
+    def get_order(
+        order_id: int,
+        _: dict[str, str] = Depends(get_current_user),
+        session: Session = Depends(get_session),
+    ):
         order = session.get(Order, order_id)
         if not order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found",
+            )
         return order
 
     @app.put("/orders/{order_id}")
-    def update_order(order_id: int, payload: dict, _: dict[str, str] = Depends(get_current_user), session: Session = Depends(get_session)):
+    def update_order(
+        order_id: int,
+        payload: dict,
+        _: dict[str, str] = Depends(get_current_user),
+        session: Session = Depends(get_session),
+    ):
         order = session.get(Order, order_id)
         if not order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found",
+            )
         # apply allowed updates
         for key in ("customer_name", "item", "quantity", "unit_price", "status"):
             if key in payload and payload[key] is not None:
@@ -211,10 +261,17 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
         return order
 
     @app.delete("/orders/{order_id}")
-    def delete_order(order_id: int, _: dict[str, str] = Depends(get_current_user), session: Session = Depends(get_session)):
+    def delete_order(
+        order_id: int,
+        _: dict[str, str] = Depends(get_current_user),
+        session: Session = Depends(get_session),
+    ):
         order = session.get(Order, order_id)
         if not order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found",
+            )
         session.delete(order)
         session.commit()
         return {"detail": "Order deleted"}
@@ -228,6 +285,7 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
     app.state._models = (Order,)
 
     return app
+
 
 # Note: this module exposes create_app(database_url) to construct the FastAPI app.
 # A default app instance is provided so servers can import `modulo2_3.app:app` or

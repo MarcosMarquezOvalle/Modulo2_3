@@ -1,9 +1,9 @@
-import os
+from __future__ import annotations
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session
-
 from modulo2_3.app import create_app
+from sqlmodel import Session
 
 
 @pytest.fixture()

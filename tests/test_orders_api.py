@@ -1,10 +1,10 @@
-import os
-import pytest
-from fastapi.testclient import TestClient
-from hypothesis import given, strategies as st
+from __future__ import annotations
 
-# create app with in-memory sqlite for tests
+from fastapi.testclient import TestClient
+from hypothesis import given
+from hypothesis import strategies as st
 from modulo2_3.app import create_app
+# create app with in-memory sqlite for tests
 
 app = create_app("sqlite:///:memory:")
 client = TestClient(app)
@@ -29,13 +29,28 @@ def test_get_orders_requires_authentication():
 
 
 @given(
-    customer_name=st.text(min_size=2, max_size=40).map(lambda v: v.strip()).filter(lambda v: v != "" and len(v) >= 2),
-    item=st.text(min_size=2, max_size=40).map(lambda v: v.strip()).filter(lambda v: v != "" and len(v) >= 2),
+    customer_name=st.text(min_size=2, max_size=40)
+    .map(lambda v: v.strip())
+    .filter(lambda v: v != "" and len(v) >= 2),
+    item=st.text(min_size=2, max_size=40)
+    .map(lambda v: v.strip())
+    .filter(lambda v: v != "" and len(v) >= 2),
     quantity=st.integers(min_value=1, max_value=50),
-    unit_price=st.decimals(min_value=1, max_value=5000, allow_nan=False, allow_infinity=False),
+    unit_price=st.decimals(
+        min_value=1,
+        max_value=5000,
+        allow_nan=False,
+        allow_infinity=False,
+    ),
     status=st.sampled_from(["pending", "paid", "shipped", "cancelled"]),
 )
-def test_create_order_accepts_valid_payloads(customer_name, item, quantity, unit_price, status):
+def test_create_order_accepts_valid_payloads(
+    customer_name,
+    item,
+    quantity,
+    unit_price,
+    status,
+):
     token = login_token()
     headers = {"Authorization": f"Bearer {token}"}
 

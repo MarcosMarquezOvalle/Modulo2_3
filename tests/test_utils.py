@@ -1,15 +1,13 @@
-import os
-import jwt
+from __future__ import annotations
 
-from modulo2_3.app import (
-    _make_password_hash,
-    _verify_password,
-    create_token,
-    ensure_default_admin,
-    authenticate_user_db,
-    SECRET_KEY,
-    ALGORITHM,
-)
+import jwt
+from modulo2_3.app import _make_password_hash
+from modulo2_3.app import _verify_password
+from modulo2_3.app import ALGORITHM
+from modulo2_3.app import authenticate_user_db
+from modulo2_3.app import create_token
+from modulo2_3.app import ensure_default_admin
+from modulo2_3.app import SECRET_KEY
 
 
 def test_password_hash_and_verify():
